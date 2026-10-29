@@ -9,7 +9,14 @@ const at = (iso: string) => new Date(`${iso}T18:21:00+03:00`);
 async function main() {
   const email = process.env.SEED_ADMIN_EMAIL;
   const password = process.env.SEED_ADMIN_PASSWORD;
-  if (!email || !password) throw new Error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD");
+  if (!email || !password) {
+    // During a Vercel build, seeding is optional: skip it until both are set.
+    if (process.argv.includes("--if-configured")) {
+      console.log("Seed skipped: SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD are not set");
+      process.exit(0);
+    }
+    throw new Error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD");
+  }
 
   const existing = await db.query.companies.findFirst();
   if (existing) {

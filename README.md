@@ -22,9 +22,8 @@ Sign in at http://localhost:3000 with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWOR
 
 1. Import this repository as a Vercel project.
 2. Add **Neon Postgres** from the Vercel Marketplace. It sets `DATABASE_URL`.
-3. Add `AUTH_SECRET` under Settings → Environment Variables (`openssl rand -base64 32`).
-4. Deploy. The `vercel-build` script applies database migrations before building.
-5. Seed once from your machine with the production `DATABASE_URL`: `DATABASE_URL=... SEED_ADMIN_EMAIL=... SEED_ADMIN_PASSWORD=... npm run db:seed`.
+3. Under Settings → Environment Variables add `AUTH_SECRET` (`openssl rand -base64 32`), `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`.
+4. Deploy. The `vercel-build` script applies migrations, creates the demo company and admin login on the first build (later builds skip it), then builds the app.
 
 Never commit secrets. Daraja, Mifumo SMS and WhatsApp keys are added the same way when their milestone arrives.
 
