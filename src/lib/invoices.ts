@@ -1,14 +1,15 @@
 import "server-only";
-import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { newLinkToken } from "@/lib/ids";
 import { invoicePdfUrl } from "@/lib/urls";
 import { openCollectionAccount } from "@/lib/integrations/daraja";
 import { sendSms } from "@/lib/integrations/sms";
 import { sendWhatsAppDocument } from "@/lib/integrations/whatsapp";
-import type { CallResult } from "@/lib/integrations/result";
+import { logMessage, shillings } from "@/lib/messages";
+import { nextNumber } from "@/lib/numbering";
 
-const { invoices, invoiceItems, cargo, customers, companies, collectionAccounts, messages } = schema;
+const { invoices, invoiceItems, cargo, customers, companies, collectionAccounts } = schema;
 
 export type InvoiceLine = { cargoId: string; priceUsd: number };
 
@@ -37,14 +38,7 @@ export async function createInvoice(input: { companyId: string; customerId: stri
     const priced = lines.map((l) => ({ ...l, priceTzs: toTzs(l.priceUsd, usdRate), cargo: rows.find((r) => r.id === l.cargoId)! }));
     const totalTzs = priced.reduce((t, l) => t + l.priceTzs, 0);
 
-    // Numbers run per company and per year: INV-2026-00001. The unique index settles any race.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`invoice-no:${companyId}`}))`);
-    const year = new Date().getFullYear();
-    const [{ n }] = await tx
-      .select({ n: count() })
-      .from(invoices)
-      .where(and(eq(invoices.companyId, companyId), sql`extract(year from ${invoices.issuedAt} at time zone 'Africa/Dar_es_Salaam') = ${year}`));
-    const invoiceNo = `INV-${year}-${String(n + 1).padStart(5, "0")}`;
+    const invoiceNo = await nextNumber(tx, "INV", invoices, invoices.companyId, invoices.issuedAt, companyId);
 
     const [invoice] = await tx
       .insert(invoices)
@@ -100,19 +94,10 @@ export async function ensureCollectionAccount(invoiceId: string) {
   return updated;
 }
 
-const amount = (n: string | number) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 /** The SMS text, kept to one 160-character message where the link allows. */
 export function invoiceSms(company: string, invoiceNo: string, totalTzs: string, accountNo: string, link: string) {
-  return `${company}: Ankara ${invoiceNo} TZS ${amount(totalTzs)}. Lipa akaunti TCB ${accountNo}. Pakua: ${link}`;
-}
-
-async function logMessage(values: Omit<typeof messages.$inferInsert, "status">, result: CallResult) {
-  await db.insert(messages).values({
-    ...values,
-    status: result.ok ? "sent" : "failed",
-    providerResponse: result.ok ? { status: result.status, data: result.data } : { error: result.error, status: result.status, notConfigured: result.notConfigured ?? false },
-  });
+  return `${company}: Ankara ${invoiceNo} TZS ${shillings(totalTzs)}. Lipa akaunti TCB ${accountNo}. Pakua: ${link}`;
 }
 
 /** Sends the invoice by WhatsApp (PDF) and SMS (link). Needs the bank account to exist. */
@@ -132,7 +117,7 @@ export async function sendInvoice(invoiceId: string, channels: ("whatsapp" | "sm
   const base = { companyId: company.id, recipient: customer.phone, invoiceId };
 
   if (channels.includes("whatsapp")) {
-    const caption = `${company.name}\nInvoice ${invoice.invoiceNo}: TZS ${amount(invoice.totalTzs)}.\nPay to TCB account ${account.bankAccountNo} (${account.accountName ?? company.name}). / Lipa kwenye akaunti ya TCB ${account.bankAccountNo}.`;
+    const caption = `${company.name}\nInvoice ${invoice.invoiceNo}: TZS ${shillings(invoice.totalTzs)}.\nPay to TCB account ${account.bankAccountNo} (${account.accountName ?? company.name}). / Lipa kwenye akaunti ya TCB ${account.bankAccountNo}.`;
     await logMessage({ ...base, channel: "whatsapp", body: caption }, await sendWhatsAppDocument(customer.phone, `${link}.pdf`, `${invoice.invoiceNo}.pdf`, caption));
   }
   if (channels.includes("sms")) {

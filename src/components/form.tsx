@@ -78,4 +78,4 @@ export function SubmitBar({ label, pending, error }: { label: string; pending: b
 }
 
 /** What a form's server action returns when it can't save. */
-export type FormState = { error?: string; fields?: Record<string, string>; values?: Record<string, string> } | undefined;
+export type FormState = { error?: string; notice?: string; fields?: Record<string, string>; values?: Record<string, string> } | undefined;

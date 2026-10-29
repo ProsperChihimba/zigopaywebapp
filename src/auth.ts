@@ -31,3 +31,10 @@ export async function requireUser() {
   if (!session?.user?.companyId) throw new Error("Not signed in");
   return session.user;
 }
+
+/** The signed-in staff member, if their role is one of `roles`. Otherwise throws. */
+export async function requireRole(...roles: ("admin" | "finance" | "warehouse")[]) {
+  const user = await requireUser();
+  if (!roles.includes(user.role)) throw new Error(`Only ${roles.join(" or ")} staff can do this`);
+  return user;
+}

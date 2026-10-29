@@ -11,10 +11,12 @@ import { formatDateTime, formatNumber } from "@/lib/format";
 import { displayPhone } from "@/lib/phone";
 import { ACCOUNT_STATUS, INVOICE_STATUS } from "@/lib/invoice-labels";
 import { resendAction, retryAccountAction } from "../actions";
+import { resendReleaseOrderAction } from "../../payments/actions";
+import { ManualPayment } from "./manual-payment";
 
 export const metadata = { title: "Invoice · Zigopay" };
 
-const { invoices, invoiceItems, cargo, customers, collectionAccounts, messages } = schema;
+const { invoices, invoiceItems, cargo, customers, collectionAccounts, messages, payments, releaseOrders, users } = schema;
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { companyId } = await requireUser();
@@ -30,7 +32,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   if (!head) notFound();
   const { invoice, customer, account } = head;
 
-  const [items, sent] = await Promise.all([
+  const [items, sent, received, [releaseOrder]] = await Promise.all([
     db
       .select({ item: invoiceItems, trackingNo: cargo.trackingNo, description: cargo.description })
       .from(invoiceItems)
@@ -38,10 +40,19 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       .where(eq(invoiceItems.invoiceId, invoice.id))
       .orderBy(asc(cargo.receivedAt)),
     db.select().from(messages).where(eq(messages.invoiceId, invoice.id)).orderBy(desc(messages.createdAt)),
+    db
+      .select({ payment: payments, recordedBy: users.name })
+      .from(payments)
+      .leftJoin(users, eq(users.id, payments.recordedBy))
+      .where(eq(payments.invoiceId, invoice.id))
+      .orderBy(desc(payments.receivedAt)),
+    db.select().from(releaseOrders).where(eq(releaseOrders.invoiceId, invoice.id)),
   ]);
+  const invoiceMessages = sent.filter((m) => !m.releaseOrderId);
+  const releaseMessages = sent.filter((m) => m.releaseOrderId);
 
   const balance = Number(invoice.totalTzs) - Number(invoice.amountPaid);
-  const working = account?.status === "pending" || (account?.status === "created" && sent.length === 0);
+  const working = account?.status === "pending" || (account?.status === "created" && invoiceMessages.length === 0) || (!!releaseOrder && releaseMessages.length === 0);
   const facts = [
     ["Customer", customer.name],
     ["Phone", displayPhone(customer.phone)],
@@ -111,7 +122,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
           <h2 className="text-sm font-semibold">Sent to the customer</h2>
           <ul className="mt-3 divide-y divide-line text-sm">
             {(["whatsapp", "sms"] as const).map((channel) => {
-              const last = sent.find((m) => m.channel === channel);
+              const last = invoiceMessages.find((m) => m.channel === channel);
               const response = last?.providerResponse as { error?: string } | null;
               return (
                 <li key={channel} className="flex flex-wrap items-center gap-3 py-2.5">
@@ -134,6 +145,65 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
             })}
           </ul>
         </div>
+      </section>
+
+      {releaseOrder && (
+        <section className="border-b border-line px-6 py-6">
+          <div className="rounded-2xl border-2 border-brand bg-brand-soft p-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-sm font-semibold">Release order</h2>
+              <Badge tone={releaseOrder.collectedAt ? "grey" : "green"}>{releaseOrder.collectedAt ? `Collected ${formatDateTime(releaseOrder.collectedAt)}` : "Ready for collection"}</Badge>
+              <a href={`/r/${releaseOrder.pdfToken}`} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-2 text-sm font-medium text-brand hover:underline">
+                Open release order PDF <ExternalLink className="h-4 w-4" />
+              </a>
+            </div>
+            <p className="mt-2 text-2xl font-semibold tracking-wider">{releaseOrder.releaseNo}</p>
+            <p className="mt-1 text-sm text-muted">Issued {formatDateTime(releaseOrder.issuedAt)}, automatically, when the invoice was fully paid.</p>
+            <ul className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+              {(["whatsapp", "sms"] as const).map((channel) => {
+                const last = releaseMessages.find((m) => m.channel === channel);
+                return (
+                  <li key={channel} className="flex items-center gap-3">
+                    <span className="font-medium">{channel === "sms" ? "SMS" : "WhatsApp"}</span>
+                    {last ? <Badge tone={last.status === "sent" ? "green" : "red"}>{last.status === "sent" ? "Sent" : "Not sent"}</Badge> : <span className="text-muted">Sending…</span>}
+                    <form action={resendReleaseOrderAction}>
+                      <input type="hidden" name="releaseOrderId" value={releaseOrder.id} />
+                      <input type="hidden" name="channel" value={channel} />
+                      <button className="text-sm font-medium text-brand hover:underline">{last ? "Resend" : "Send"}</button>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
+      )}
+
+      <section className="border-b border-line">
+        <div className="flex flex-wrap items-center gap-3 px-6 pt-6">
+          <h2 className="text-sm font-medium">Payments received</h2>
+          <span className="text-sm text-muted">
+            TZS {formatNumber(invoice.amountPaid)} of {formatNumber(invoice.totalTzs)}
+          </span>
+        </div>
+        <Table head={["Received", "Amount (TZS)", "To wallet (TZS)", "Payer", "Bank", "Source", "Daraja collection"]} empty={received.length === 0 ? "No payments yet." : undefined}>
+          {received.map(({ payment: p, recordedBy }) => (
+            <tr key={p.id}>
+              <td>{formatDateTime(p.receivedAt)}</td>
+              <td className="font-medium">{formatNumber(p.amount)}</td>
+              <td>{Number(p.toWallet) > 0 ? formatNumber(p.toWallet) : "-"}</td>
+              <td>{p.payerName ?? "-"}</td>
+              <td>{p.payerBank ?? "-"}</td>
+              <td>{p.source === "webhook" ? <Badge tone="blue">Daraja</Badge> : <Badge tone="yellow">{`Manual · ${recordedBy ?? "staff"}`}</Badge>}</td>
+              <td className="text-xs text-muted">{p.collectionId ?? p.note ?? "-"}</td>
+            </tr>
+          ))}
+        </Table>
+        {invoice.status !== "paid" && (
+          <div className="px-6 py-5">
+            <ManualPayment invoiceId={invoice.id} balance={balance} now={new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 16)} />
+          </div>
+        )}
       </section>
 
       <h2 className="px-6 pt-6 text-sm font-medium">Cargo on this invoice</h2>

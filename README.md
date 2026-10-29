@@ -34,6 +34,16 @@ Never commit secrets. Integrations are configured with the variables listed in `
 | `MIFUMO_SMS_API_KEY`, `MIFUMO_SMS_SENDER_ID` | Sending the invoice link by SMS |
 | `APP_URL` | The domain in SMS links, if not the Vercel production domain |
 
+## Payments
+
+Daraja calls `POST /api/webhooks/daraja` for every payment into an invoice's TCB account. Give Daraja ops that URL on your production domain, and set `DARAJA_WEBHOOK_SECRET`.
+
+- The `X-Daraja-Signature` header is checked against the raw body; anything else gets 401 and is not recorded.
+- A payment is matched to its invoice by the account it was paid into. Its `collection_id` is unique, so a repeated delivery is never counted twice.
+- Money goes to the invoice balance first; anything above it goes to the customer's wallet.
+- The payment that completes an invoice issues its release order in the same transaction. Messages are sent after Daraja has its 200.
+- A payment whose webhook never arrived can be entered from the invoice page (**Record payment manually**). It is marked as manual, with who entered it.
+
 ## Scripts
 
 | Script | Does |
