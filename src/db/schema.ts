@@ -23,7 +23,8 @@ export const cargoStatus = pgEnum("cargo_status", ["received", "loaded", "in_tra
 export const shipmentType = pgEnum("shipment_type", ["sea", "air"]);
 export const shipmentStatus = pgEnum("shipment_status", ["registered", "loaded", "in_transit", "at_port", "arrived", "off_loaded"]);
 export const invoiceStatus = pgEnum("invoice_status", ["unpaid", "partly_paid", "paid"]);
-export const accountStatus = pgEnum("account_status", ["pending", "created", "failed"]);
+// "uncertain": Daraja answered 502 or timed out, so the account may exist. Daraja ops must check; never retry automatically.
+export const accountStatus = pgEnum("account_status", ["pending", "created", "failed", "uncertain"]);
 export const paymentSource = pgEnum("payment_source", ["webhook", "manual"]);
 export const messageChannel = pgEnum("message_channel", ["sms", "whatsapp"]);
 export const messageStatus = pgEnum("message_status", ["sent", "failed"]);

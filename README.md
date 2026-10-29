@@ -25,7 +25,14 @@ Sign in at http://localhost:3000 with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWOR
 3. Under Settings → Environment Variables add `AUTH_SECRET` (`openssl rand -base64 32`), `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`.
 4. Deploy. The `vercel-build` script applies migrations, creates the demo company and admin login on the first build (later builds skip it), then builds the app.
 
-Never commit secrets. Daraja, Mifumo SMS and WhatsApp keys are added the same way when their milestone arrives.
+Never commit secrets. Integrations are configured with the variables listed in `.env.example`. Until a service's variables are set, Zigopay records that service as "not configured" on the invoice page instead of calling it.
+
+| Variable | Used for |
+| --- | --- |
+| `DARAJA_TOKEN`, `DARAJA_PARTNER_ID` | Opening the TCB account for each invoice |
+| `DARAJA_WEBHOOK_SECRET` | Verifying payment webhooks (milestone 4) |
+| `MIFUMO_SMS_API_KEY`, `MIFUMO_SMS_SENDER_ID` | Sending the invoice link by SMS |
+| `APP_URL` | The domain in SMS links, if not the Vercel production domain |
 
 ## Scripts
 
