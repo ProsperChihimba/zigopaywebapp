@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zigopay
 
-## Getting Started
+Invoicing and automatic release orders for cargo companies. Staff record cargo and create invoices; each invoice gets its own TCB bank account through Daraja; the customer receives the invoice PDF on WhatsApp and a link by SMS; when Daraja's payment webhook shows the invoice is fully paid, Zigopay issues and sends the release order.
 
-First, run the development server:
+Stack: Next.js 15 (App Router, TypeScript), Postgres with Drizzle ORM, Auth.js staff login, Tailwind CSS. Deployed on Vercel.
+
+## Run locally
+
+Needs Node 20+ and a Postgres database.
 
 ```bash
+cp .env.example .env.local   # then fill in AUTH_SECRET and SEED_ADMIN_PASSWORD
+npm install
+npm run db:migrate
+npm run db:seed              # demo company, admin login and sample data
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Sign in at http://localhost:3000 with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`.
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Import this repository as a Vercel project.
+2. Add **Neon Postgres** from the Vercel Marketplace. It sets `DATABASE_URL`.
+3. Add `AUTH_SECRET` under Settings → Environment Variables (`openssl rand -base64 32`).
+4. Deploy. The `vercel-build` script applies database migrations before building.
+5. Seed once from your machine with the production `DATABASE_URL`: `DATABASE_URL=... SEED_ADMIN_EMAIL=... SEED_ADMIN_PASSWORD=... npm run db:seed`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Never commit secrets. Daraja, Mifumo SMS and WhatsApp keys are added the same way when their milestone arrives.
+
+## Scripts
+
+| Script | Does |
+| --- | --- |
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run typecheck` / `npm run lint` | Checks |
+| `npm run db:generate` | New migration after changing `src/db/schema.ts` |
+| `npm run db:migrate` | Apply migrations |
+| `npm run db:seed` | Demo data (skips if a company already exists) |
