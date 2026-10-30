@@ -5,7 +5,8 @@ const PUBLIC_PATHS = ["/login", "/i/", "/r/", "/api/webhooks/"];
 
 // Kept free of database code so the middleware can use it.
 export const authConfig = {
-  pages: { signIn: "/login" },
+  // Auth.js sends its own errors (e.g. a missing AUTH_SECRET) to /login?error=… instead of a raw JSON page.
+  pages: { signIn: "/login", error: "/login" },
   trustHost: true,
   session: { strategy: "jwt" },
   providers: [],
