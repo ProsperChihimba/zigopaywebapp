@@ -124,8 +124,16 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
         </View>
 
         <View style={s.pay} wrap={false}>
-          <Text style={s.bold}>PAYMENT METHOD / NAMNA YA KULIPA</Text>
-          {account?.status === "created" && account.bankAccountNo ? (
+          <Text style={s.bold}>{invoice.status === "paid" ? "PAYMENT / MALIPO" : "PAYMENT METHOD / NAMNA YA KULIPA"}</Text>
+          {invoice.status === "paid" ? (
+            <>
+              <Text style={[s.account, { color: green }]}>PAID IN FULL / IMELIPWA</Text>
+              <Text>
+                Received / Imepokelewa: <Text style={s.bold}>TZS {money(invoice.amountPaid)}</Text>
+              </Text>
+              <Text style={[s.muted, { marginTop: 6 }]}>The release order for these goods has been sent to you. / Hati ya kuchukua mzigo imetumwa kwako.</Text>
+            </>
+          ) : account?.status === "created" && account.bankAccountNo ? (
             <>
               <Text style={{ marginTop: 6 }}>Pay from any bank or mobile wallet to this TCB account. / Lipa kupitia benki yoyote au simu kwenye akaunti hii ya TCB.</Text>
               <Text style={s.account}>{account.bankAccountNo}</Text>
@@ -134,6 +142,7 @@ export function InvoicePdf({ data }: { data: InvoicePdfData }) {
               </Text>
               <Text style={{ marginTop: 6 }}>
                 Amount to pay / Kiasi cha kulipa: <Text style={s.bold}>TZS {money(balance)}</Text>
+                {Number(invoice.amountPaid) > 0 ? ` (TZS ${money(invoice.amountPaid)} already received)` : ""}
               </Text>
               <Text style={[s.muted, { marginTop: 6 }]}>Your release order is sent automatically once the full amount is received. / Hati ya kuchukua mzigo itatumwa mara malipo kamili yakipokelewa.</Text>
             </>

@@ -1,5 +1,5 @@
 import { and, count, desc, eq, gte, ilike, isNull, or, sum } from "drizzle-orm";
-import { CalendarDays, CircleAlert, HandCoins, Receipt } from "lucide-react";
+import { CalendarDays, CircleAlert, Download, HandCoins, Receipt } from "lucide-react";
 import { requireUser } from "@/auth";
 import { db, schema } from "@/db";
 import { PageHeader } from "@/components/page-header";
@@ -7,18 +7,11 @@ import { StatCard, StatGrid } from "@/components/stat-card";
 import { Badge } from "@/components/badge";
 import { PAGE_SIZE, Pagination, RowLink, Table, pageFrom } from "@/components/table";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { eatStarts } from "@/lib/time";
 
 export const metadata = { title: "Payments · Zigopay" };
 
 const { payments, invoices, customers } = schema;
-
-/** Midnight today and the 1st of this month, in East Africa Time. */
-function eatStarts() {
-  const eat = new Date(Date.now() + 3 * 3600_000);
-  const day = new Date(Date.UTC(eat.getUTCFullYear(), eat.getUTCMonth(), eat.getUTCDate()) - 3 * 3600_000);
-  const month = new Date(Date.UTC(eat.getUTCFullYear(), eat.getUTCMonth(), 1) - 3 * 3600_000);
-  return { day, month };
-}
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const { companyId } = await requireUser();
@@ -61,6 +54,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         <StatCard label="Payments recorded" value={total} icon={Receipt} tint="grey" />
         <StatCard label="Not matched to an invoice" value={unmatched.n} icon={CircleAlert} tint={unmatched.n ? "orange" : "grey"} />
       </StatGrid>
+      <div className="flex justify-end px-6 py-4">
+        <a href="/payments/export" className="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-tint-grey">
+          <Download className="h-4 w-4" /> Download CSV
+        </a>
+      </div>
       <Table
         head={["Received", "Amount (TZS)", "Invoice", "Customer", "Payer", "Payer bank", "To wallet (TZS)", "Source", "Daraja collection"]}
         empty={rows.length === 0 ? (q ? `No payments match "${q}".` : "No payments yet. They appear here as soon as Daraja reports them.") : undefined}
